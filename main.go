@@ -60,36 +60,63 @@ func makeRequest(ctx *fasthttp.RequestCtx, attempt int) *fasthttp.Response {
 		resp := fasthttp.AcquireResponse()
 		resp.SetBody([]byte("Proxy failed to connect. Please try again."))
 		resp.SetStatusCode(500)
-
 		return resp
 	}
 
 	req := fasthttp.AcquireRequest()
 	defer fasthttp.ReleaseRequest(req)
+
 	req.Header.SetMethod(string(ctx.Method()))
-	url := strings.SplitN(string(ctx.Request.Header.RequestURI())[1:], "/", 2)
-	req.SetRequestURI("https://" + url[0] + ".roblox.com/" + url[1])
+
+	url := strings.SplitN(
+		string(ctx.Request.Header.RequestURI())[1:],
+		"/",
+		2,
+	)
+
+	req.SetRequestURI(
+		"https://" + url[0] + ".roblox.com/" + url[1],
+	)
+
 	req.SetBody(ctx.Request.Body())
-ctx.Request.Header.VisitAll(func(key, value []byte) {
-	req.Header.Set(string(key), string(value))
-})
 
-robloxCookie := os.Getenv("ROBLOX_COOKIE")
-if robloxCookie != "" {
-	req.Header.Set("Cookie", ".ROBLOSECURITY="+robloxCookie)
-}
+	ctx.Request.Header.VisitAll(func(key, value []byte) {
+		req.Header.Set(string(key), string(value))
+	})
 
-req.Header.Set("User-Agent", "RoProxy")
-req.Header.Del("Roblox-Id")
-req.Header.Del("PROXYKEY")
+	robloxCookie := strings.TrimSpace(os.Getenv("ROBLOX_COOKIE"))
+
+	robloxCookie = strings.TrimPrefix(
+		robloxCookie,
+		".ROBLOSECURITY=",
+	)
+
+	robloxCookie = strings.Trim(robloxCookie, `"`)
+
+	if index := strings.Index(robloxCookie, ";"); index != -1 {
+		robloxCookie = robloxCookie[:index]
+	}
+
+	if robloxCookie != "" {
+		req.Header.Del("Cookie")
+		req.Header.Set(
+			"Cookie",
+			".ROBLOSECURITY="+robloxCookie,
+		)
+	}
+
+	req.Header.Set("User-Agent", "RoProxy")
+	req.Header.Del("Roblox-Id")
+	req.Header.Del("PROXYKEY")
+
 	resp := fasthttp.AcquireResponse()
 
 	err := client.Do(req, resp)
 
-    if err != nil {
+	if err != nil {
 		fasthttp.ReleaseResponse(resp)
-        return makeRequest(ctx, attempt + 1)
-    } else {
-		return resp
+		return makeRequest(ctx, attempt+1)
 	}
+
+	return resp
 }
