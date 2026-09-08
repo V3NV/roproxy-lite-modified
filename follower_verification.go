@@ -64,6 +64,10 @@ func envPositiveInt(name string, fallback int) int {
 	return value
 }
 
+func followerRequestDelay() time.Duration {
+	return time.Duration(envPositiveInt("FOLLOWER_REQUEST_DELAY_MS", 3000)) * time.Millisecond
+}
+
 func startFollowerCache() {
 	refreshInterval := time.Duration(envPositiveInt("FOLLOWER_REFRESH_MINUTES", 30)) * time.Minute
 	go func() {
@@ -91,7 +95,7 @@ func refreshFollowerCache() {
 
 	ids := followedUserIDs()
 	newFollowerIDs := make(map[int64]struct{})
-	for _, userID := range ids {
+	for index, userID := range ids {
 		followerIDs, err := fetchAllFollowerIDs(userID)
 		if err != nil {
 			log.Printf("Follower cache refresh failed for %d: %v", userID, err)
@@ -100,6 +104,10 @@ func refreshFollowerCache() {
 
 		for followerID := range followerIDs {
 			newFollowerIDs[followerID] = struct{}{}
+		}
+
+		if index < len(ids)-1 {
+			time.Sleep(followerRequestDelay())
 		}
 	}
 
@@ -115,7 +123,7 @@ func fetchAllFollowerIDs(userID int64) (map[int64]struct{}, error) {
 	followerIDs := make(map[int64]struct{})
 	cursor := ""
 	page := 1
-	delay := time.Duration(envPositiveInt("FOLLOWER_REQUEST_DELAY_MS", 1000)) * time.Millisecond
+	delay := followerRequestDelay()
 
 	for {
 		endpoint := fmt.Sprintf("https://friends.roblox.com/v1/users/%d/followers?limit=100", userID)
@@ -148,7 +156,7 @@ func fetchAllFollowerIDs(userID int64) (map[int64]struct{}, error) {
 }
 
 func fetchFollowerPage(endpoint string) ([]byte, error) {
-	for attempt := 1; attempt <= 5; attempt++ {
+	for attempt := 1; attempt <= 8; attempt++ {
 		req := fasthttp.AcquireRequest()
 		resp := fasthttp.AcquireResponse()
 		req.Header.SetMethod(fasthttp.MethodGet)
@@ -158,6 +166,7 @@ func fetchFollowerPage(endpoint string) ([]byte, error) {
 
 		err := client.Do(req, resp)
 		statusCode := resp.StatusCode()
+		retryAfterSeconds, _ := strconv.Atoi(string(resp.Header.Peek("Retry-After")))
 		body := append([]byte(nil), resp.Body()...)
 		fasthttp.ReleaseRequest(req)
 		fasthttp.ReleaseResponse(resp)
@@ -166,14 +175,19 @@ func fetchFollowerPage(endpoint string) ([]byte, error) {
 			return body, nil
 		}
 
-		if statusCode != fasthttp.StatusTooManyRequests || attempt == 5 {
+		if statusCode != fasthttp.StatusTooManyRequests || attempt == 8 {
 			if err != nil {
 				return nil, err
 			}
 			return nil, fmt.Errorf("Roblox returned HTTP %d", statusCode)
 		}
 
-		time.Sleep(time.Duration(attempt) * time.Second)
+		retryDelay := time.Duration(retryAfterSeconds) * time.Second
+		if retryDelay <= 0 {
+			retryDelay = time.Duration(attempt*5) * time.Second
+		}
+		log.Printf("Roblox rate-limited a follower request; retrying in %s (attempt %d of 8)", retryDelay, attempt)
+		time.Sleep(retryDelay)
 	}
 
 	return nil, fmt.Errorf("follower request retry limit reached")

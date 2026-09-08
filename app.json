@@ -21,7 +21,7 @@
         },
         "FOLLOWER_REQUEST_DELAY_MS": {
             "description": "Delay between follower pages during a refresh, in milliseconds.",
-            "value": "1000"
+            "value": "3000"
         },
         "FOLLOWED_USER_IDS": {
             "description": "Comma-separated Roblox user IDs whose followers are allowed. Defaults to the two configured IDs.",
