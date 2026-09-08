@@ -99,26 +99,7 @@ func makeRequest(ctx *fasthttp.RequestCtx, attempt int) *fasthttp.Response {
 		req.Header.Set(string(key), string(value))
 	})
 
-	robloxCookie := strings.TrimSpace(os.Getenv("ROBLOX_COOKIE"))
-
-	robloxCookie = strings.TrimPrefix(
-		robloxCookie,
-		".ROBLOSECURITY=",
-	)
-
-	robloxCookie = strings.Trim(robloxCookie, `"`)
-
-	if index := strings.Index(robloxCookie, ";"); index != -1 {
-		robloxCookie = robloxCookie[:index]
-	}
-
-	if robloxCookie != "" {
-		req.Header.Del("Cookie")
-		req.Header.Set(
-			"Cookie",
-			".ROBLOSECURITY="+robloxCookie,
-		)
-	}
+	applyRobloxCookie(req)
 
 	req.Header.Set("User-Agent", "RoProxy")
 	req.Header.Del("Roblox-Id")
@@ -134,4 +115,19 @@ func makeRequest(ctx *fasthttp.RequestCtx, attempt int) *fasthttp.Response {
 	}
 
 	return resp
+}
+
+func applyRobloxCookie(req *fasthttp.Request) {
+	robloxCookie := strings.TrimSpace(os.Getenv("ROBLOX_COOKIE"))
+	robloxCookie = strings.TrimPrefix(robloxCookie, ".ROBLOSECURITY=")
+	robloxCookie = strings.Trim(robloxCookie, `"`)
+
+	if index := strings.Index(robloxCookie, ";"); index != -1 {
+		robloxCookie = robloxCookie[:index]
+	}
+
+	if robloxCookie != "" {
+		req.Header.Del("Cookie")
+		req.Header.Set("Cookie", ".ROBLOSECURITY="+robloxCookie)
+	}
 }

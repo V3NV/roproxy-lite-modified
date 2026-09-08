@@ -153,6 +153,7 @@ func fetchFollowerPage(endpoint string) ([]byte, error) {
 		resp := fasthttp.AcquireResponse()
 		req.Header.SetMethod(fasthttp.MethodGet)
 		req.Header.Set("User-Agent", "FollowerVerificationCache/1.0")
+		applyRobloxCookie(req)
 		req.SetRequestURI(endpoint)
 
 		err := client.Do(req, resp)
