@@ -2,11 +2,12 @@ package main
 
 import (
 	"log"
-	"time"
 	"os"
-	"github.com/valyala/fasthttp"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/valyala/fasthttp"
 )
 
 var timeout, _ = strconv.Atoi(os.Getenv("TIMEOUT"))
@@ -17,11 +18,13 @@ var client *fasthttp.Client
 
 func main() {
 	h := requestHandler
-	
+
 	client = &fasthttp.Client{
 		ReadTimeout: time.Duration(timeout) * time.Second,
 		MaxIdleConnDuration: 60 * time.Second,
 	}
+
+	startFollowerCache()
 
 	if err := fasthttp.ListenAndServe(":" + port, h); err != nil {
 		log.Fatalf("Error in ListenAndServe: %s", err)
@@ -29,11 +32,12 @@ func main() {
 }
 
 func requestHandler(ctx *fasthttp.RequestCtx) {
-	val, ok := os.LookupEnv("KEY")
+	if !hasValidProxyKey(ctx) {
+		return
+	}
 
-	if ok && string(ctx.Request.Header.Peek("PROXYKEY")) != val {
-		ctx.SetStatusCode(407)
-		ctx.SetBody([]byte("Missing or invalid PROXYKEY header."))
+	if string(ctx.Path()) == "/verify-follower" {
+		handleFollowerVerification(ctx)
 		return
 	}
 
@@ -53,6 +57,17 @@ func requestHandler(ctx *fasthttp.RequestCtx) {
 	response.Header.VisitAll(func (key, value []byte) {
 		ctx.Response.Header.Set(string(key), string(value))
 	})
+}
+
+func hasValidProxyKey(ctx *fasthttp.RequestCtx) bool {
+	val, ok := os.LookupEnv("KEY")
+	if !ok || val == "" || string(ctx.Request.Header.Peek("PROXYKEY")) == val {
+		return true
+	}
+
+	ctx.SetStatusCode(407)
+	ctx.SetBody([]byte("Missing or invalid PROXYKEY header."))
+	return false
 }
 
 func makeRequest(ctx *fasthttp.RequestCtx, attempt int) *fasthttp.Response {
