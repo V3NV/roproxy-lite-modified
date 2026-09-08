@@ -24,8 +24,6 @@ func main() {
 		MaxIdleConnDuration: 60 * time.Second,
 	}
 
-	startFollowerCache()
-
 	if err := fasthttp.ListenAndServe(":" + port, h); err != nil {
 		log.Fatalf("Error in ListenAndServe: %s", err)
 	}

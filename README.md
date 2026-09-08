@@ -11,6 +11,6 @@ When "KEY" environment variable is populated, a matching "PROXYKEY" header must 
 
 ## Follower verification
 
-`GET /verify-follower?userId=ROBLOX_USER_ID` returns a JSON `{ "allowed": true }` response for either configured account or one of their followers. It uses the same `PROXYKEY` authentication as the proxy.
+`GET /verify-follower?userId=ROBLOX_USER_ID` returns a JSON `{ "allowed": true }` response for either configured account or a player who follows one. It uses the same `PROXYKEY` authentication as the proxy.
 
-The service refreshes the two follower lists in the background and keeps one cache for the entire deployment, so player joins never crawl the Roblox follower API. Configure `FOLLOWED_USER_IDS`, `FOLLOWER_REFRESH_MINUTES` (default `30`), and `FOLLOWER_REQUEST_DELAY_MS` (default `3000`) in Railway. Until the first refresh completes, the endpoint returns HTTP `503` with `ready: false`.
+The service checks the joining player's following list and stops as soon as it finds a configured account. Results are cached for that player, including denied checks, so it does not crawl a creator's full follower list. Configure `FOLLOWED_USER_IDS` and `FOLLOWING_CACHE_MINUTES` (default `60`) in Railway.
